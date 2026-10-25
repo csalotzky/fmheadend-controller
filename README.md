@@ -6,7 +6,7 @@ Firmware for the FMheadend Controller, based on the RP2354 with **2 MiB flash** 
 - Firmware application version: **1.0.0** (`firmware_config.h`)
 - Standard host audio format: **128 stereo frames per TX per SPI packet**, 48 kHz
 
-This directory can be built, tested and provisioned independently of the main FMheadend repository. The Linux I²C firmware updater is supplied separately in the host repository.
+This repository can be built, tested and provisioned independently. The host application and Linux I²C OTA updater are maintained in [csalotzky/fmheadend](https://github.com/csalotzky/fmheadend).
 
 ## 1. Build
 
@@ -22,7 +22,7 @@ The supplied PowerShell workflow uses the Raspberry Pi Pico VS Code extension's 
 | OpenOCD (SWD/debug) | 0.12.0+dev |
 | Python | 3.11+ |
 
-Open **this firmware directory** as the VS Code workspace. **Compile Project** runs:
+Open **this repository root** as the VS Code workspace. **Compile Project** runs:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/rp2354_build.ps1
@@ -131,13 +131,13 @@ Install `pytest` separately. Set `PICOTOOL` to picotool 2.3.1 for partition test
 
 ## 4. I²C firmware updates
 
-Once the board has a valid A/B installation, subsequent updates use the host repository's **`tools/rp2354_flash.py`**, not the SWD provisioning script. The uploader requires the host Controller client, firmware artifact validator and installed `fmheadendd` package metadata.
+Once the board has a valid A/B installation, subsequent updates use **`fmheadend-controller-update`**, installed with the host `fmheadendd` Python package. The updater includes its own image/manifest validation and needs only the matching OTA `.bin` and adjacent `.bin.json`; no firmware source checkout is required. SWD provisioning remains a tool of this Controller repository.
 
 Choose the matching `build/ota/fmheadend_rp2354_txN.bin` and `.bin.json`. Stop other Controller clients before starting an update. Successful updates leave **RF OFF**.
 
-In the complete FMheadend repository, see:
+Detailed documentation is maintained in the host repository:
 
-- [RP2354 firmware installation and update](../../docs/rp2354-firmware-update.md) — I²C uploader commands, A/B boot, rollback and recovery.
-- [Controller protocol](../../docs/controller-protocol.md) — I²C command frames, status codes and SPI audio format.
+- [RP2354 firmware installation and update](https://github.com/csalotzky/fmheadend/blob/master/docs/rp2354-firmware-update.md) — I²C uploader commands, A/B boot, rollback and recovery.
+- [Controller protocol](https://github.com/csalotzky/fmheadend/blob/master/docs/controller-protocol.md) — I²C command frames, status codes and SPI audio format.
 
-These links require the full repository; the build, SWD and test instructions above work with this directory alone. Neither offline tests nor successful flash readback establish RF/audio performance or power-loss-safe OTA on every board.
+The build, SWD and test instructions above work with this repository alone. Neither offline tests nor successful flash readback establish RF/audio performance or power-loss-safe OTA on every board.
