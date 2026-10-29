@@ -29,6 +29,7 @@ qn_boot_result_t qn_boot_device(unsigned index)
     };
     if (index >= QN_COUNT) return result;
 
+    result.attempts = 1;
     const unsigned cen_pin = QN_CEN_FIRST_PIN + index;
     uint8_t initial_cid2, system1;
     gpio_put(cen_pin, 1);

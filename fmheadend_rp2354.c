@@ -49,32 +49,50 @@ int main(void)
 #endif
 
     qn_bus_init();
+    sleep_ms(100); /* Once per boot, with every QN held in reset. */
+    /* Power-on CEN reset pulse; keep the QN bus idle throughout. */
+    for (unsigned index = 0; index < QN_COUNT; ++index)
+        gpio_put(QN_CEN_FIRST_PIN + index, 1);
+    sleep_ms(100);
+    for (unsigned index = 0; index < QN_COUNT; ++index)
+        gpio_put(QN_CEN_FIRST_PIN + index, 0);
     sleep_ms(100);
 #if DEBUG_UART_ENABLED
     unsigned ready_count = 0;
 #endif
     uint8_t ready_mask = 0;
     for (unsigned index = 0; index < QN_COUNT; ++index) {
-        qn_boot_results[index] = qn_boot_device(index);
+        for (unsigned attempt = 1; attempt <= QN_BOOT_MAX_ATTEMPTS; ++attempt) {
+            qn_boot_results[index] = qn_boot_device(index);
+            qn_boot_results[index].attempts = attempt;
+            const qn_boot_result_t *result = &qn_boot_results[index];
+            if (result->ready) break;
+
+            /* qn_boot_device has already isolated this QN, even if DEV_ADD
+             * changed despite a bus error. Never retry at an uncertain address.
+             */
+            uart_printf("QN%u target 0x%02X: FAIL attempt %u/%u %s (%s, bus=%u); ",
+                        index, result->address, attempt, QN_BOOT_MAX_ATTEMPTS,
+                        result->stage, result->bus_status == QN_BUS_OK ? "mismatch" :
+                        qn_bus_status_name(result->bus_status), (unsigned)result->bus_status);
+#if DEBUG_UART_ENABLED
+            if (result->cid2_read) uart_printf("CID2=0x%02X; ", result->cid2);
+            else uart_puts(DEBUG_UART, "CID2=unavailable; ");
+            uart_printf("CEN LOW, RF OFF; %s\r\n",
+                        attempt < QN_BOOT_MAX_ATTEMPTS ? "retry after 250 ms" : "exhausted");
+#endif
+            if (attempt < QN_BOOT_MAX_ATTEMPTS) sleep_ms(250);
+        }
         const qn_boot_result_t *result = &qn_boot_results[index];
         if (result->ready) {
 #if DEBUG_UART_ENABLED
             ++ready_count;
 #endif
             ready_mask |= 1u << index;
-            uart_printf("QN%u @ 0x%02X: CID2=0x%02X OK, RF OFF\r\n",
-                        index, result->address, result->cid2);
+            uart_printf("QN%u @ 0x%02X: CID2=0x%02X OK, RF OFF; attempts=%u\r\n",
+                        index, result->address, result->cid2, result->attempts);
         } else {
             boot_hardware_fault = true;
-            uart_printf("QN%u target 0x%02X: FAIL %s (%s); ", index,
-                        result->address, result->stage,
-                        result->bus_status == QN_BUS_OK ? "mismatch" :
-                        qn_bus_status_name(result->bus_status));
-#if DEBUG_UART_ENABLED
-            if (result->cid2_read) uart_printf("CID2=0x%02X; ", result->cid2);
-            else uart_puts(DEBUG_UART, "CID2=unavailable; ");
-            uart_puts(DEBUG_UART, "CEN LOW, RF OFF\r\n");
-#endif
         }
     }
     uart_printf("BOOT: %u/%u ready; RF OFF; %s\r\n", ready_count, QN_COUNT,

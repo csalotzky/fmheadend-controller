@@ -8,6 +8,8 @@ Firmware for the FMheadend Controller, based on the RP2354 with **2 MiB flash** 
 
 This repository can be built, tested and provisioned independently. The host application and Linux I²C OTA updater are maintained in [csalotzky/fmheadend](https://github.com/csalotzky/fmheadend).
 
+QN startup holds all populated CEN pins LOW for 100 ms after bus initialization, then pulses all CEN pins HIGH for 100 ms and LOW for 100 ms without I2C transactions. Devices initialize in ascending TX order, with 100 ms CEN settling per attempt and up to three attempts separated by 250 ms in reset. Failed devices remain isolated; successful devices remain enabled with RF OFF. `qn_boot_results` retains each device's final result and attempt count for SWD inspection. The initial 100 ms hold still requires hardware validation.
+
 ## 1. Build
 
 ### Prerequisites
