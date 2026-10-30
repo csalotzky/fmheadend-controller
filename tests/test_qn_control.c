@@ -33,7 +33,7 @@ int main(void)
         assert(fake_regs[3][7]==0x71 && fake_regs[3][4]==QN_REG_VGA_DEFAULT);
         assert(fake_regs[3][0]==(mode==1?1:5));
         assert(fake_regs[3][8]==0xba && (fake_regs[3][11]&3)==1);
-        assert(fake_regs[3][13]==0xd0 && fake_regs[3][0x5a]==0xe4);
+        assert(fake_regs[3][13]==0xd0 && fake_regs[3][0x5a]==0xc4);
         assert(q.channel[3].configured && !q.channel[3].enabled);
         assert(qn_control_sine_mask(&q)==0);
         assert(digital_mask==qn_control_digital_mask(&q));
@@ -59,8 +59,32 @@ int main(void)
         reset(); uint8_t p[15]; memcpy(p,config,15); p[4]=step*15;
         set_frequency(p,step?108000:76000);
         assert(call(2,0,p)==0 && (fake_regs[0][90]&15)==step);
-        assert((fake_regs[0][90]&0x30)==0x20); /* IPOW unchanged. */
+        assert((fake_regs[0][90]&0x30)==0); /* Explicit highest-current choice. */
         assert(fake_regs[0][8]==(step?0x80:0) && (fake_regs[0][11]&3)==(step?2:0));
+    }
+    /* Exhaust every wire value, comparing against all 64 hardware pairs. */
+    for(unsigned a=0;a<=405;++a) {
+        reset(); uint8_t p[15]; memcpy(p,config,15); p[4]=a; p[5]=a>>8;
+        unsigned best_error=999, best_code=0, best_level=0;
+        for(unsigned k=0;k<4;++k) for(unsigned n=0;n<16;++n) {
+            const unsigned level=60*k+15*n;
+            const unsigned error=level>a ? level-a : a-level;
+            if(error<best_error) {best_error=error;best_code=0xc0|(k<<4)|n;best_level=level;}
+        }
+        assert(call(2,0,p)==HOST_OK && fake_regs[0][90]==best_code);
+        assert(q.channel[0].attenuation==(int)best_level);
+        uint8_t status[130]; qn_control_status(&q,status,0);
+        assert(host_get_i16(status+11)==(int)best_level);
+    }
+    for(unsigned a=406;a<=65535;++a) {
+        reset(); uint8_t p[15]; memcpy(p,config,15);p[4]=a;p[5]=a>>8;
+        assert(call(2,0,p)==HOST_INVALID_ARGUMENT && !fake_calls);
+    }
+    /* Decode all manual pairs, including noncanonical raw overrides. */
+    for(unsigned code=0;code<64;++code) {
+        reset(); uint8_t raw[]={90,(uint8_t)(0x40|code)};
+        assert(call(8,0,raw)==HOST_OK);
+        assert(q.channel[0].attenuation==(int)(15*(code&15)+60*(code>>4)));
     }
     for(int gain=-15;gain<=150;gain+=15) {
         reset(); uint8_t p[15]; memcpy(p,config,15); p[11]=(uint16_t)gain;p[12]=(uint16_t)gain>>8;
@@ -84,7 +108,7 @@ int main(void)
     for(unsigned field=0;field<15;++field) {
         reset();memcpy(p,config,15);
         if(field<4) set_frequency(p,field==0?75950:field==1?108050:98101);
-        else if(field==4 || field==5) {p[4]=1;p[5]=0;}
+        else if(field==4 || field==5) {p[4]=150;p[5]=1;}
         else if(field==7) p[7]=51;
         else if(field==8) p[8]=3;
         else if(field==11 || field==12) {p[11]=1;p[12]=0;}

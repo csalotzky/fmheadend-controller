@@ -10,6 +10,24 @@ This repository can be built, tested and provisioned independently. The host app
 
 QN startup holds all populated CEN pins LOW for 100 ms after bus initialization, then pulses all CEN pins HIGH for 100 ms and LOW for 100 ms without I2C transactions. Devices initialize in ascending TX order, with 100 ms CEN settling per attempt and up to three attempts separated by 250 ms in reset. Failed devices remain isolated; successful devices remain enabled with RF OFF. `qn_boot_results` retains each device's final result and attempt count for SWD inspection. The initial 100 ms hold still requires hardware validation.
 
+Manual RF attenuation uses the unchanged V1 unsigned 16-bit field at
+`SET_TX_CONFIG` payload bytes 4-5, in tenths of a dB. All values 0..405
+(0..40.5 dB) are accepted; larger values are rejected before QN access.
+Requests are rounded to the nearest available 1.5 dB nominal level, with
+0.7 dB rounding down and 0.8 dB rounding up within each interval.
+The firmware programs manual PA control in register `0x5A` using
+`A = 1.5 * PAGAIN + 6 * IPOW`, selecting the lowest IPOW code that fits
+PAGAIN (0..15). IPOW codes 0..3 select 4, 2, 1 and 0.5 mA respectively.
+Status reports the applied nominal value from both fields, not the unrounded
+request; automatic PA mode continues to report unknown. The 6 dB/IPOW
+weighting is an approximation supported by initial hardware experiments,
+not a calibrated RF scale. Multi-frequency, temperature and eight-channel
+measurements remain necessary. Both fields are now set explicitly, so an
+old configuration that retained a nonzero IPOW can change absolute output.
+No automatic PAC_TARGET calibration is used. The separate host application
+must accept the extended range and account for quantized status; existing
+host validation/UI limits are outside this Controller change.
+
 ## 1. Build
 
 ### Prerequisites

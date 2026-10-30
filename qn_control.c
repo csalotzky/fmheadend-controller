@@ -68,9 +68,19 @@ static void observed_system1(qn_control_t *q, unsigned i, uint8_t v)
     if (v&4) c->saturated=255;
     publish_sources(q);
 }
+/* Round tenths of a dB to the nearest 1.5 dB level. Choose the smallest
+ * IPOW code that fits PAGAIN's four bits (highest available PA current).
+ * Caller validates 0..405; one IPOW step is nominally four PAGAIN steps.
+ */
+static uint8_t manual_pa(unsigned attenuation)
+{
+    const unsigned steps=(attenuation+7u)/15u;
+    const unsigned ipow=steps>15u ? (steps-12u)/4u : 0u;
+    return (uint8_t)(0x40u | (ipow<<4) | (steps-4u*ipow));
+}
 static void observed_power(qn_channel_t *c, uint8_t v)
 {
-    c->attenuation=(v&0x40) ? (int16_t)((v&15)*15) : INT16_MIN;
+    c->attenuation=(v&0x40) ? (int16_t)((v&15)*15+((v>>4)&3)*60) : INT16_MIN;
 }
 void qn_control_init(qn_control_t *q, uint8_t ready_mask)
 {
@@ -88,7 +98,7 @@ static uint8_t configure(qn_control_t *q, unsigned i, const uint8_t *p)
     const unsigned attenuation=host_get_u16(p+4);
     const int gain=host_get_i16(p+11);
     if (freq<76000 || freq>108000 || (freq-76000)%50 ||
-        attenuation>225 || attenuation%15 || p[6]>1 || (p[7]!=50 && p[7]!=75) ||
+        attenuation>QN_ATTENUATION_MAX_X10 || p[6]>1 || (p[7]!=50 && p[7]!=75) ||
         p[8]>2 || p[9]>1 || p[10]>1 || p[13]>1 || p[14]>1 ||
         (p[10] && (gain < -15 || gain>150 || (gain+15)%15))) return HOST_INVALID_ARGUMENT;
     /* AUTO deliberately ignores the persisted manual gains (V1 semantics).
@@ -115,8 +125,8 @@ static uint8_t configure(qn_control_t *q, unsigned i, const uint8_t *p)
                       (p[10] ? ((p[13]<<4) | (unsigned)((gain+15)/15)) : 1u);
     const uint8_t regs[]={SYSTEM1,ANACTL1,REG_VGA,I2S,CH,CH_STEP,GAIN,PAG_CAL};
     const uint8_t vals[]={system1,0x2b,QN_REG_VGA_DEFAULT,0x71,(uint8_t)channel,
-        (uint8_t)((step&0xfc)|(channel>>8)),agc,(uint8_t)((power&0xb0)|0x40|(attenuation/15))};
-    /* Recalibrate while RF is OFF; preserve DEV_ADD and IPOW. */
+        (uint8_t)((step&0xfc)|(channel>>8)),agc,(uint8_t)((power&0x80)|manual_pa(attenuation))};
+    /* Recalibrate while RF is OFF; preserve DEV_ADD and explicitly select both PA fields. */
     if (!checked_write(q,i,SYSTEM2,sys2|0x40,0xff)) return isolate(q,i);
     for (unsigned r=0;r<sizeof(regs);++r) {
         /* AUTO gain low bits are owned by the AGC FSM. */
@@ -127,7 +137,7 @@ static uint8_t configure(qn_control_t *q, unsigned i, const uint8_t *p)
     sleep_ms(20); /* Proven board settling interval, not a PLL-lock measurement. */
     if (!checked_write(q,i,SYSTEM1,system1|(restore_tx?TXREQ:0),0xff)) return isolate(q,i);
     observed_system1(q,i,system1|(restore_tx?TXREQ:0));
-    c->configured=true; c->attenuation=(int16_t)attenuation;
+    c->configured=true; observed_power(c,manual_pa(attenuation));
     c->audio_mode=p[8];
     publish_sources(q);
     c->saturated=255;

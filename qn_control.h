@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define QN_ATTENUATION_MAX_X10 405u
+
 #define QN_RDS_STARTUP_US 150000u
 
 typedef struct {

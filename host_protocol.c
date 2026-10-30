@@ -108,8 +108,7 @@ static uint8_t validate(const host_protocol_t *host)
     if (length != expected) return HOST_INVALID_ARGUMENT;
     if (command == SET_TX_ENABLED && p[0] > 1) return HOST_INVALID_ARGUMENT;
     if (command == SET_TX_CONFIG &&
-        (!host_get_u32(p) || host_get_u16(p + 4) > 225 ||
-         host_get_u16(p + 4) % 15 || p[6] > 1 ||
+        (!host_get_u32(p) || host_get_u16(p + 4) > QN_ATTENUATION_MAX_X10 || p[6] > 1 ||
          (p[7] != 50 && p[7] != 75) || p[8] > 2 || p[9] > 1 ||
          p[10] > 1 || p[13] > 1 || p[14] > 1)) return HOST_INVALID_ARGUMENT;
     return HOST_OK;

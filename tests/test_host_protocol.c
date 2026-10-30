@@ -108,6 +108,13 @@ static void crc_rejection(void)
 }
 int main(void)
 {
+    for(unsigned a=0;a<=65535;++a) {
+        fake_qn_reset(); host_protocol_init(&host,255);
+        uint8_t frame[sizeof(config)]; memcpy(frame,config,sizeof(frame));
+        frame[7]=a;frame[8]=a>>8;
+        request(frame,sizeof(frame),a<=405 ? HOST_OK : HOST_INVALID_ARGUMENT);
+        if(a>405) assert(!fake_calls);
+    }
     fake_qn_reset();
     crc_rejection();
     host_protocol_init(&host, 0xff);
@@ -175,6 +182,7 @@ int main(void)
     for (unsigned i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) {
         uint8_t invalid[sizeof(config)]; memcpy(invalid, config, sizeof(config));
         if (fields[i] == 3) memset(invalid + 3, 0, 4);
+        else if (fields[i]==7 || fields[i]==8) {invalid[7]=150;invalid[8]=1;}
         else invalid[fields[i]] = fields[i] == 11 ? 3 : 2;
         request(invalid, sizeof(invalid), HOST_INVALID_ARGUMENT);
     }
