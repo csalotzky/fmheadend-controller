@@ -1,4 +1,4 @@
-"""Bench configuration: same fields and validation as the host TxConfig."""
+"""Bench configuration: Controller V1 fields and validation for bench use."""
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,7 +11,7 @@ class TxConfig(Model):
     digital_trim_db: int = Field(default=0, ge=0, le=1, strict=True)
     soft_clipping: bool = Field(default=False, strict=True)
     frequency_khz: int
-    rf_attenuation_db: float | None = Field(default=None, ge=0, le=22.5, multiple_of=1.5, strict=True)
+    rf_attenuation_db: float | None = Field(default=None, ge=0, le=40.5, multiple_of=0.1, strict=True)
     stereo: bool
     preemphasis_us: int
     audio_mode: Literal["DIGITAL", "ANALOG", "SINE"]

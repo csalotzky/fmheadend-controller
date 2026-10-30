@@ -7,7 +7,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bench_support.linux_client import Rp2354Client
 from bench_support.client import TxConfig
-from bench_support.protocol import InvalidArgument
+from bench_support.protocol import InvalidArgument, quantized_rf_attenuation_db
 
 
 def main():
@@ -32,8 +32,8 @@ def main():
     try:
         info = rp.get_info()
         print("GET_INFO:", info, flush=True)
-        if info["rp_firmware_version"] not in ("0.8.3", "0.8.4", "0.8.5", "0.8.6a", "0.8.6b"):
-            raise RuntimeError("This smoke requires M8.3-M8.6B firmware")
+        if info["rp_firmware_version"] not in ("0.8.3", "0.8.4", "0.8.5", "0.8.6a", "0.8.6b", "1.0.0"):
+            raise RuntimeError("This smoke requires M8.3-M8.6B or 1.0.0 firmware")
         if args.command == "status":
             print("GET_STATUS:", rp.get_status(), flush=True)
             return
@@ -73,8 +73,8 @@ def main():
                 raise RuntimeError("Firmware accepted an unrepresentable frequency")
             rp.set_tx_config(args.tx, config)
             snapshot = status("OFF")
-            if snapshot["modulators"][args.tx]["rf_attenuation_db"] != args.attenuation_db:
-                raise RuntimeError("Attenuation readback differs from configuration")
+            if snapshot["modulators"][args.tx]["rf_attenuation_db"] != quantized_rf_attenuation_db(args.attenuation_db):
+                raise RuntimeError("Attenuation readback differs from quantized configuration")
             print("Configured, RF OFF. Verify no carrier and LED OFF.", flush=True)
             if args.command == "configure":
                 return
